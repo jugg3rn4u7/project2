@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.io.FilenameUtils;
 import org.json.simple.JSONObject;
@@ -19,13 +21,13 @@ import org.json.simple.parser.ParseException;
 public class Classifier {
 
 	private List<FileModel> listOfFiles = new ArrayList<FileModel>();
-	private List<UsersModel> usersList = null;
+	private HashMap<Integer, UsersModel> usersList = null;
 	private List<Integer> user2List = null;
 	private List<UserHistoryModel> usersHistoryList = null;
-	private List<JobsModel> jobsList = null;
-	private List<AppsModel> appsList = null;
+	private HashMap<Integer, JobsModel> jobsList = null;
+	private HashMap<Integer, AppsModel> appsList = null;
 	private JSONObject configuration = null;
-	private List<NearestNeighbor> listOfNeighbors = null;
+	private HashMap<Integer, NearestNeighbor> listOfNeighbors = null;
 	private HashMap<Integer, Integer> jobScore = null;
 
 	public Classifier() throws IOException, ParseException {
@@ -48,17 +50,21 @@ public class Classifier {
 		}
 	}
 
-	public void scoreJobs(List<NearestNeighbor> listOfNeighbors) throws IOException, ParseException {
+	public void scoreJobs(HashMap<Integer, NearestNeighbor> listOfNeighbors) throws IOException, ParseException {
 
 		readJobsTSV();
+		readAppsTSV();
 
 		jobScore = new HashMap<Integer, Integer>();
 
-		Iterator<NearestNeighbor> listIter = listOfNeighbors.iterator();
-		while (listIter.hasNext()) {
-			NearestNeighbor n = listIter.next();
-
-		}
+		Set set = listOfNeighbors.entrySet();
+		Iterator i = set.iterator(); int noneCounter = 0;
+	    while(i.hasNext()) 
+	    {
+	    	Map.Entry me = (Map.Entry)i.next();
+	        //do nothing
+	    	System.out.println("Doing nothing... "+ (++noneCounter));
+	    }
 	}
 
 	public void readAppsTSV() throws IOException, ParseException {
@@ -73,8 +79,6 @@ public class Classifier {
 
 			// System.out.println("The value of the list is: " +
 			// listValue.getName());
-
-			System.out.println("Loading Started ...");
 
 			if (listValue.getName().toString().trim().compareToIgnoreCase("apps.tsv") == 0) {
 
@@ -93,8 +97,6 @@ public class Classifier {
 				// }
 			}
 		}
-
-		System.out.println("Loading Ended ...");
 	}
 
 	public void readJobsTSV() throws IOException, ParseException {
@@ -109,8 +111,6 @@ public class Classifier {
 
 			// System.out.println("The value of the list is: " +
 			// listValue.getName());
-
-			System.out.println("Loading Started ...");
 
 			if (listValue.getName().toString().trim().compareToIgnoreCase("jobs.tsv") == 0) {
 
@@ -128,18 +128,16 @@ public class Classifier {
 				// }
 			}
 		}
-
-		System.out.println("Loading Ended ...");
 	}
 
-	public List<NearestNeighbor> readNeighborsTSV() throws IOException {
+	public HashMap<Integer, NearestNeighbor> readNeighborsTSV() throws IOException {
 
 		BufferedReader reader;
 		String line = null;
 		String[] stringArray = new String[6];
 		String fileToRead = "neighbors.tsv";
 
-		listOfNeighbors = new ArrayList<NearestNeighbor>();
+		listOfNeighbors = new HashMap<Integer, NearestNeighbor>();
 
 		// Read config file
 		reader = new BufferedReader(new FileReader(fileToRead));
@@ -155,7 +153,7 @@ public class Classifier {
 			n.setNeighbor4(Integer.parseInt(stringArray[4]));
 			n.setNeighbor5(Integer.parseInt(stringArray[5]));
 
-			listOfNeighbors.add(n);
+			listOfNeighbors.put(n.getPrimaryUser(), n);
 			n = null;
 		}
 
@@ -286,20 +284,26 @@ public class Classifier {
 			System.out.println("Loading Ended ...");
 		}
 
-		List<NearestNeighbor> neighbors = calculateNeighbor(usersList, user2List);
-		Iterator<NearestNeighbor> user2ListIter = neighbors.iterator();
-		while (user2ListIter.hasNext()) {
-			NearestNeighbor obj = (NearestNeighbor) user2ListIter.next();
+		listOfNeighbors = calculateNeighbor(usersList, user2List);
+		Set set = listOfNeighbors.entrySet();
+		Iterator i = set.iterator();
+	    while(i.hasNext()) 
+	    {
+	    	Map.Entry me = (Map.Entry)i.next();
+	        
+	        System.out.println("primaryUser: " + (Integer)me.getKey() + 
+	        		" ; neighbor1: " + ((NearestNeighbor)me.getValue()).getNeighbor1() + 
+	        		" ; neighbor2: " + ((NearestNeighbor)me.getValue()).getNeighbor2() + 
+	        		" ; neighbor3: " + ((NearestNeighbor)me.getValue()).getNeighbor3() + 
+	        		" ; neighbor4: " + ((NearestNeighbor)me.getValue()).getNeighbor4() + 
+	        		" ; neighbor5: " + ((NearestNeighbor)me.getValue()).getNeighbor5());
 
-			System.out.println("primaryUser: " + obj.getPrimaryUser() + " ; neighbor1: " + obj.getNeighbor1()
-					+ " ; neighbor2: " + obj.getNeighbor2() + " ; neighbor3: " + obj.getNeighbor3() + " ; neighbor4: "
-					+ obj.getNeighbor4() + " ; neighbor5: " + obj.getNeighbor5());
-		}
+	    }
 
 		if ((Boolean) configuration.get("skipCalculatingNeighbors") == false) {
 			updateConfig("skipCalculatingNeighbors", true, 1);
 			reloadConfig();
-			writeNeighborsTSV(neighbors);
+			writeNeighborsTSV(listOfNeighbors);
 		}
 	}
 
@@ -328,10 +332,11 @@ public class Classifier {
 		return true;
 	}
 
-	public List<UsersModel> readFileUsers(String path) {
+	public HashMap<Integer, UsersModel> readFileUsers(String path) {
 
 		try {
-			List<UsersModel> users = new ArrayList<UsersModel>();
+			//List<UsersModel> users = new ArrayList<UsersModel>();
+			HashMap<Integer, UsersModel> users = new HashMap<Integer, UsersModel>();
 
 			String[] stringArray = null;
 			BufferedReader reader;
@@ -377,7 +382,7 @@ public class Classifier {
 					newUser.setTotalYearsExperience(Integer.parseInt(stringArray[9]));
 				}
 
-				users.add(newUser);
+				users.put(newUser.getUserID(), newUser);
 
 				newUser = null;
 			}
@@ -460,10 +465,11 @@ public class Classifier {
 		}
 	}
 
-	public List<JobsModel> readFileJobs(String path) {
+	public HashMap<Integer, JobsModel> readFileJobs(String path) {
 
 		try {
-			List<JobsModel> users = new ArrayList<JobsModel>();
+			//List<JobsModel> users = new ArrayList<JobsModel>();
+			HashMap<Integer, JobsModel> jobs = new HashMap<Integer, JobsModel>();
 
 			String[] stringArray = null;
 			BufferedReader reader;
@@ -491,32 +497,32 @@ public class Classifier {
 
 				lineCounter++;
 
-				JobsModel newUser = new JobsModel();
+				JobsModel newJob = new JobsModel();
 
 				if (!isDirtyData(stringArray[0], "number")) {
-					newUser.setJobID(Integer.parseInt(stringArray[0]));
+					newJob.setJobID(Integer.parseInt(stringArray[0]));
 				}
 
 				if (!isDirtyData(stringArray[1], "text")) {
-					newUser.setTitle(new StringBuffer(stringArray[1]));
+					newJob.setTitle(new StringBuffer(stringArray[1]));
 				}
 
 				if (!isDirtyData(stringArray[4], "text")) {
-					newUser.setCity(new StringBuffer(stringArray[4]));
+					newJob.setCity(new StringBuffer(stringArray[4]));
 				}
 
 				if (!isDirtyData(stringArray[7], "number")) {
-					newUser.setZip5(Integer.parseInt(stringArray[7]));
+					newJob.setZip5(Integer.parseInt(stringArray[7]));
 				}
 
-				users.add(newUser);
+				jobs.put(newJob.getJobID(), newJob);
 
-				newUser = null;
+				newJob = null;
 			}
 
 			reader.close();
 
-			return users;
+			return jobs;
 
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -525,11 +531,12 @@ public class Classifier {
 	}
 
 	@SuppressWarnings("deprecation")
-	public List<AppsModel> readFileApps(String path) {
+	public HashMap<Integer, AppsModel> readFileApps(String path) {
 
 		try {
-			List<AppsModel> users = new ArrayList<AppsModel>();
-
+			//List<AppsModel> users = new ArrayList<AppsModel>();
+			HashMap<Integer, AppsModel> users = new HashMap<Integer, AppsModel>();
+			
 			String[] stringArray = null;
 			BufferedReader reader;
 			String line = null;
@@ -570,7 +577,7 @@ public class Classifier {
 					newUser.setJobID(Integer.parseInt(stringArray[2]));
 				}
 
-				users.add(newUser);
+				users.put(newUser.getUserID(), newUser);
 
 				newUser = null;
 			}
@@ -631,61 +638,44 @@ public class Classifier {
 		}
 	}
 
-	public List<NearestNeighbor> calculateNeighbor(List<UsersModel> u, List<Integer> u2) {
+	public HashMap<Integer, NearestNeighbor> calculateNeighbor(HashMap<Integer, UsersModel> u, List<Integer> u2) {
 
 		try {
 
-			List<UsersModel> subsetUserDetails = new ArrayList<UsersModel>();
+			HashMap<Integer, UsersModel> subsetUserDetails = new HashMap<Integer, UsersModel>();
 
 			// Iterator over the 'u2' list
 			Iterator<Integer> listIter = u2.iterator();
 			while (listIter.hasNext()) {
 				Integer user = (Integer) listIter.next();
-
-				// Iterator over the 'u' list
-				Iterator<UsersModel> listIterU = u.iterator();
-				while (listIterU.hasNext()) {
-					UsersModel anotherUser = (UsersModel) listIterU.next();
-
-					// Compare if the user from u2 with the user from u
-					if (user == anotherUser.getUserID()) {
-						subsetUserDetails.add(anotherUser);
-						break;
-					}
-				}
+				subsetUserDetails.put(user, u.get(user));
 			}
 
-			List<NearestNeighbor> listOfNeighbors = new ArrayList<NearestNeighbor>();
+			HashMap<Integer, NearestNeighbor> listOfNeighbors = new HashMap<Integer, NearestNeighbor>();
+			
+			Set set = subsetUserDetails.entrySet();
+			Iterator i = set.iterator();
+		    while(i.hasNext()) 
+		    {
+		    	Map.Entry me = (Map.Entry)i.next();
+		        Integer[] nearestNeighborForDatapoint = find5NeighborsOf(u, (UsersModel)me.getValue());
 
-			// TODO: Remove this block later
-			// Display subset of users and their details
-			// Iterator over the subsetUserDetails list
-			Iterator<UsersModel> subsetListIter = subsetUserDetails.iterator();
-			while (subsetListIter.hasNext()) {
-				UsersModel userObj = (UsersModel) subsetListIter.next();
-
-				// System.out.println("U2 subset list (details): " +
-				// userObj.getUserID() + "; " +userObj.getZipCode());
-
-				Integer[] nearestNeighborForDatapoint = find5NeighborsOf(u, userObj);
-
-				System.out.println("Neighbors of " + userObj.getUserID() + " are " + nearestNeighborForDatapoint[0]
-						+ ", " + nearestNeighborForDatapoint[1] + ", " + nearestNeighborForDatapoint[2] + ", "
-						+ nearestNeighborForDatapoint[3] + ", " + nearestNeighborForDatapoint[4]);
+				System.out.println("Neighbors of " + (Integer)me.getKey() + " are " + nearestNeighborForDatapoint[0]
+							+ ", " + nearestNeighborForDatapoint[1] + ", " + nearestNeighborForDatapoint[2] + ", "
+							+ nearestNeighborForDatapoint[3] + ", " + nearestNeighborForDatapoint[4]);
 
 				NearestNeighbor n = new NearestNeighbor();
 
-				n.setPrimaryUser(userObj.getUserID());
+				n.setPrimaryUser((Integer)me.getKey());
 				n.setNeighbor1(nearestNeighborForDatapoint[0]);
 				n.setNeighbor2(nearestNeighborForDatapoint[1]);
 				n.setNeighbor3(nearestNeighborForDatapoint[2]);
 				n.setNeighbor4(nearestNeighborForDatapoint[3]);
 				n.setNeighbor5(nearestNeighborForDatapoint[4]);
 
-				listOfNeighbors.add(n);
-				n = null;
-			}
-
+				listOfNeighbors.put((Integer)me.getKey(), n);
+		    }
+		    
 			return listOfNeighbors;
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -726,7 +716,7 @@ public class Classifier {
 		}
 	}
 
-	public Integer[] find5NeighborsOf(List<UsersModel> searchList, UsersModel keyRecord) {
+	public Integer[] find5NeighborsOf(HashMap<Integer, UsersModel> searchList, UsersModel keyRecord) {
 
 		try {
 
@@ -735,27 +725,25 @@ public class Classifier {
 
 			int counter = 0;
 			int skipIterationCounter = 0;
-
-			Iterator<UsersModel> listIter = searchList.iterator();
-			while (listIter.hasNext()) {
-				UsersModel comparisonRecord = (UsersModel) listIter.next();
-
-				// comparison record and key record should not be the same
-				// record
-				// If it is the same ... ignore that record and hence skip the
-				// iteration
-				if (comparisonRecord.getUserID() == keyRecord.getUserID()) {
+			
+			Set set = searchList.entrySet();
+			Iterator iter = set.iterator();
+		    while(iter.hasNext()) 
+		    {
+		    	Map.Entry me = (Map.Entry)iter.next();
+		    	
+		    	if ((Integer)me.getKey() == keyRecord.getUserID()) {
 					skipIterationCounter++; // Count the number of iterations
 											// skipped (or number of common
 											// users between U & U2)
 					continue;
 				}
 
-				users[counter] = comparisonRecord.getUserID();
-				distances[counter] = calculateDistance(comparisonRecord, keyRecord);
+				users[counter] = (Integer)me.getKey();
+				distances[counter] = calculateDistance((UsersModel)me.getValue(), keyRecord);
 
 				counter++;
-			}
+		    }
 
 			// TODO: Remove this block...
 			// for (int i = 0; i < distances.length; i++) {
@@ -806,21 +794,25 @@ public class Classifier {
 		}
 	}
 
-	public void writeNeighborsTSV(List<NearestNeighbor> listOfNeighbors) throws IOException {
+	public void writeNeighborsTSV(HashMap<Integer, NearestNeighbor> listOfNeighbors) throws IOException {
 
 		String consolidatedData = "", fileToWrite = "neighbors.tsv";
-
-		Iterator<NearestNeighbor> neighborsListIter = listOfNeighbors.iterator();
-		while (neighborsListIter.hasNext()) {
-			NearestNeighbor obj = (NearestNeighbor) neighborsListIter.next();
+		
+		Set set = listOfNeighbors.entrySet();
+		Iterator iter = set.iterator();
+	    while(iter.hasNext()) 
+	    {
+	    	Map.Entry me = (Map.Entry)iter.next();
+	    	
+	    	NearestNeighbor obj = (NearestNeighbor)me.getValue();
 
 			consolidatedData += obj.getPrimaryUser() + "\t" + obj.getNeighbor1() + "\t" + obj.getNeighbor2() + "\t"
 					+ obj.getNeighbor3() + "\t" + obj.getNeighbor4() + "\t" + obj.getNeighbor5();
 
-			if (!(listOfNeighbors.indexOf(obj) == (listOfNeighbors.size() - 1))) {
+			if (iter.hasNext()) {
 				consolidatedData += "\n";
 			}
-		}
+	    }
 
 		write(consolidatedData, fileToWrite);
 	}
@@ -845,9 +837,16 @@ public class Classifier {
 	}
 
 	@SuppressWarnings("unchecked")
-	public void createConfig() {
+	public void createConfig() throws IOException, ParseException {
 
 		String consolidatedData = "", fileToWrite = "config.json";
+		
+		File file = new File(fileToWrite);
+
+		if (file.exists()) {
+			reloadConfig();
+			return;
+		}
 
 		JSONObject obj = new JSONObject();
 
