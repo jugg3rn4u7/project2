@@ -58,13 +58,77 @@ public class Classifier {
 		jobScore = new HashMap<Integer, Integer>();
 
 		Set set = listOfNeighbors.entrySet();
-		Iterator i = set.iterator(); int noneCounter = 0;
+		Iterator i = set.iterator();
 	    while(i.hasNext()) 
 	    {
 	    	Map.Entry me = (Map.Entry)i.next();
-	        //do nothing
-	    	System.out.println("Doing nothing... "+ (++noneCounter));
+	        
+	    	NearestNeighbor n = (NearestNeighbor)me.getValue();
+	    	
+	    	assignRank(getAppliedJobs(n.getNeighbor1()));
+	    	assignRank(getAppliedJobs(n.getNeighbor2()));
+	    	assignRank(getAppliedJobs(n.getNeighbor3()));
+	    	assignRank(getAppliedJobs(n.getNeighbor4()));
+	    	assignRank(getAppliedJobs(n.getNeighbor5()));
+	    	
+	    	n = null;
 	    }
+	    
+	    displayScores();
+	}
+	
+	public void displayScores() {
+		
+		Set set = jobScore.entrySet();
+		Iterator i = set.iterator();
+	    while(i.hasNext()) 
+	    {
+	    	Map.Entry me = (Map.Entry)i.next();
+	        
+	    	System.out.println("jobId: "+(Integer)me.getKey()+" ; score: "+(Integer)me.getValue());
+	    }
+	}
+
+	public List<Integer> getAppliedJobs(Integer userId) {
+		
+		List<Integer> appliedJobs = new ArrayList<Integer>();
+		
+		Set set = appsList.entrySet();
+		Iterator i = set.iterator();
+	    while(i.hasNext()) 
+	    {
+	    	Map.Entry me = (Map.Entry)i.next();
+	    	
+	        if(((AppsModel)me.getValue()).getUserID() == userId) {
+	        	appliedJobs.add(((AppsModel)me.getValue()).getJobID());
+	        }
+	    }
+	    
+	    if(appliedJobs.isEmpty()) {
+	    	return null;
+	    } else {
+	    	return appliedJobs;
+	    }
+	}
+	
+	public void assignRank(List<Integer> usersAppliedJobs) {
+		
+		if(usersAppliedJobs == null) {
+			return; //No jobs applied
+		}
+		
+		Iterator<Integer> listIter = usersAppliedJobs.iterator();
+		while(listIter.hasNext())
+		{
+			Integer jobId = (Integer)listIter.next();
+			
+			if(jobScore.get(jobId) == null) {
+	    		jobScore.put(jobId, new Integer(0));
+	    	} else {
+	    		Integer count = jobScore.get(jobId);
+	    		jobScore.put(jobId, new Integer(++count));
+	    	}    	
+		}
 	}
 
 	public void readAppsTSV() throws IOException, ParseException {
@@ -563,23 +627,23 @@ public class Classifier {
 
 				lineCounter++;
 
-				AppsModel newUser = new AppsModel();
+				AppsModel newApp = new AppsModel();
 
 				if (!isDirtyData(stringArray[0], "number")) {
-					newUser.setUserID(Integer.parseInt(stringArray[0]));
+					newApp.setUserID(Integer.parseInt(stringArray[0]));
 				}
 
 				if (!isDirtyData(stringArray[1], "text")) {
-					newUser.setApplicationDate(new SimpleDateFormat(stringArray[1]));
+					newApp.setApplicationDate(new SimpleDateFormat(stringArray[1]));
 				}
 
 				if (!isDirtyData(stringArray[2], "text")) {
-					newUser.setJobID(Integer.parseInt(stringArray[2]));
+					newApp.setJobID(Integer.parseInt(stringArray[2]));
 				}
 
-				users.put(newUser.getUserID(), newUser);
+				users.put(lineCounter, newApp);
 
-				newUser = null;
+				newApp = null;
 			}
 
 			reader.close();
@@ -609,11 +673,13 @@ public class Classifier {
 			lineCounter = 0;
 
 			while ((line = reader.readLine()) != null) {
+				
+				//Note- Header skip not required ... U2 file has no headers row
 				// skip headers
-				if (lineCounter == 0) {
-					lineCounter++;
-					continue;
-				}
+//				if (lineCounter == 0) {
+//					lineCounter++;
+//					continue;
+//				}
 
 				stringArray = line.toString().split("\\t");
 
