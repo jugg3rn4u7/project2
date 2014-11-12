@@ -8,7 +8,7 @@ public class JobsMain {
 	@SuppressWarnings("unchecked")
 	public static void main(String[] args) throws IOException, ParseException {
 
-		new Classifier();
+		new Classifier("D://Materials//DataMining//Project2//data", "C://Users//shriku4u27//git//Project2");
 	}
 
 }

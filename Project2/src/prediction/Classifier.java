@@ -7,8 +7,10 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,17 +31,24 @@ public class Classifier {
 	private JSONObject configuration = null;
 	private HashMap<Integer, NearestNeighbor> listOfNeighbors = null;
 	private HashMap<Integer, Integer> jobScore = null;
+	private LinkedHashMap<Integer, Integer> sortedJobScore = null;
+	private Integer[] topJobs = null;
+	private String INPUT_PATH = null;
+	private String OUTPUT_PATH = null; 
 
-	public Classifier() throws IOException, ParseException {
+	public Classifier(String folderLocation, String outputLocation) throws IOException, ParseException {
 		// TODO Auto-generated constructor stub
-
+		
+		INPUT_PATH = folderLocation;
+		OUTPUT_PATH = outputLocation;
+		
 		createConfig();
 
 		if ((Boolean) configuration.get("skipLoadingInputFiles") == false) {
 			updateConfig("skipLoadingInputFiles", true, 1);
 			reloadConfig();
 
-			final File folder = new File("D://Materials//DataMining//Project2//data");
+			final File folder = new File(INPUT_PATH);
 			List<FileModel> listOfFiles = listFilesForFolder(folder);
 			loadInputFiles(listOfFiles);
 		}
@@ -74,19 +83,73 @@ public class Classifier {
 	    	n = null;
 	    }
 	    
+	    sortedJobScore = sortHashMapByValues(jobScore);
 	    displayScores();
+	    writeOutputTSV();
 	}
 	
+	public LinkedHashMap sortHashMapByValues(HashMap passedMap) {
+		   
+		List mapKeys = new ArrayList(passedMap.keySet());
+		List mapValues = new ArrayList(passedMap.values());
+		
+		Collections.sort(mapValues);
+		Collections.sort(mapKeys);
+
+		LinkedHashMap sortedMap = new LinkedHashMap();
+
+		Iterator valueIt = mapValues.iterator();
+		while (valueIt.hasNext()) {
+			
+		       Object val = valueIt.next();
+		       Iterator keyIt = mapKeys.iterator();
+
+		       while (keyIt.hasNext()) {
+		    	   
+		           Object key = keyIt.next();
+		           Integer comp1 = (Integer)passedMap.get(key);
+		           Integer comp2 = (Integer)val;
+
+		           if (comp1 == comp2) {
+		               passedMap.remove(key);
+		               mapKeys.remove(key);
+		               sortedMap.put(key, val);
+		               break;
+		           }
+		       }
+		}
+		
+		return sortedMap;
+	}
+
 	public void displayScores() {
 		
-		Set set = jobScore.entrySet();
-		Iterator i = set.iterator();
-	    while(i.hasNext()) 
-	    {
+		int counter = 0;
+		Set set = sortedJobScore.entrySet();
+	    Iterator i = set.iterator();
+	    
+	    topJobs = new Integer[set.size()];
+	    
+	    while(i.hasNext()) {	
 	    	Map.Entry me = (Map.Entry)i.next();
-	        
-	    	System.out.println("jobId: "+(Integer)me.getKey()+" ; score: "+(Integer)me.getValue());
+	        System.out.println(counter + ". " + me.getKey() + " : " + me.getValue());
+	        topJobs[counter] = (Integer)me.getKey();
+	        counter++;
 	    }
+	}
+	
+	public void writeOutputTSV() {
+		
+		String consolidatedData = "", fileToWrite = "output.tsv";
+		
+		fileToWrite = OUTPUT_PATH + "//" + fileToWrite;
+		
+		for (int i = topJobs.length - 1; i > topJobs.length - 151; i--) 
+		{
+			consolidatedData += topJobs[i] + "\n";
+		}
+
+		write(consolidatedData, fileToWrite);
 	}
 
 	public List<Integer> getAppliedJobs(Integer userId) {
@@ -123,7 +186,7 @@ public class Classifier {
 			Integer jobId = (Integer)listIter.next();
 			
 			if(jobScore.get(jobId) == null) {
-	    		jobScore.put(jobId, new Integer(0));
+	    		jobScore.put(jobId, new Integer(1));
 	    	} else {
 	    		Integer count = jobScore.get(jobId);
 	    		jobScore.put(jobId, new Integer(++count));
@@ -133,7 +196,7 @@ public class Classifier {
 
 	public void readAppsTSV() throws IOException, ParseException {
 
-		final File folder = new File("D://Materials//DataMining//Project2//data");
+		final File folder = new File(INPUT_PATH);
 		List<FileModel> listOfFiles = listFilesForFolder(folder);
 
 		// Iterate over file list
@@ -165,7 +228,7 @@ public class Classifier {
 
 	public void readJobsTSV() throws IOException, ParseException {
 
-		final File folder = new File("D://Materials//DataMining//Project2//data");
+		final File folder = new File(INPUT_PATH);
 		List<FileModel> listOfFiles = listFilesForFolder(folder);
 
 		// Iterate over file list
@@ -368,6 +431,7 @@ public class Classifier {
 			updateConfig("skipCalculatingNeighbors", true, 1);
 			reloadConfig();
 			writeNeighborsTSV(listOfNeighbors);
+			scoreJobs(listOfNeighbors);
 		}
 	}
 
@@ -749,17 +813,13 @@ public class Classifier {
 		}
 	}
 
-	public int calculateDistance(UsersModel comparisonRecord, UsersModel keyRecord) {
+	public double calculateDistance(UsersModel comparisonRecord, UsersModel keyRecord) {
 
 		try {
 
-			int distance = 0;
+			double distance = 0;
 
-			if (comparisonRecord.getZipCode() == keyRecord.getZipCode()) {
-				distance += 1;
-			} else {
-				distance += 0;
-			}
+			distance += 1.0/getModulusValue(comparisonRecord.getZipCode() - keyRecord.getZipCode());
 
 			if ((comparisonRecord.getMajor() != null)
 					&& comparisonRecord.getMajor().toString().compareToIgnoreCase(keyRecord.getMajor().toString()) == 0) {
@@ -768,11 +828,7 @@ public class Classifier {
 				distance += 0;
 			}
 
-			if (comparisonRecord.getTotalYearsExperience() == keyRecord.getTotalYearsExperience()) {
-				distance += 1;
-			} else {
-				distance += 0;
-			}
+			distance += 1.0/getModulusValue(comparisonRecord.getTotalYearsExperience() - keyRecord.getTotalYearsExperience());
 
 			return distance;
 
@@ -781,13 +837,17 @@ public class Classifier {
 			return 0;
 		}
 	}
+	
+	public double getModulusValue(double number) {
+		return (number <= 0) ? -number : number;
+	}
 
 	public Integer[] find5NeighborsOf(HashMap<Integer, UsersModel> searchList, UsersModel keyRecord) {
 
 		try {
 
 			Integer users[] = new Integer[searchList.size()];
-			Integer distances[] = new Integer[searchList.size()];
+			Double distances[] = new Double[searchList.size()];
 
 			int counter = 0;
 			int skipIterationCounter = 0;
@@ -819,7 +879,8 @@ public class Classifier {
 			// }
 
 			int n = users.length - skipIterationCounter; // Ignore common users
-			int temp = 0, temp1 = 0;
+			double temp = 0.0;
+			int temp1 = 0;
 
 			for (int i = 0; i < n; i++) {
 				for (int j = 1; j < (n - i); j++) {
