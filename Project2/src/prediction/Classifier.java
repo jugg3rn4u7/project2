@@ -140,9 +140,9 @@ public class Classifier {
 	
 	public void writeOutputTSV() {
 		
-		String consolidatedData = "", fileToWrite = "output.tsv";
+		String consolidatedData = "", fileToWrite = "";
 		
-		fileToWrite = OUTPUT_PATH + "//" + fileToWrite;
+		fileToWrite = OUTPUT_PATH;
 		
 		for (int i = topJobs.length - 1; i > topJobs.length - 151; i--) 
 		{
