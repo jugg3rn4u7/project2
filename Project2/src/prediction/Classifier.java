@@ -8,6 +8,7 @@ import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -35,6 +36,7 @@ public class Classifier {
 	private Integer[] topJobs = null;
 	private String INPUT_PATH = null;
 	private String OUTPUT_PATH = null; 
+	private int recordCounter = 0;
 
 	public Classifier(String folderLocation, String outputLocation) throws IOException, ParseException {
 		// TODO Auto-generated constructor stub
@@ -64,12 +66,12 @@ public class Classifier {
 		readJobsTSV();
 		readAppsTSV();
 
-		jobScore = new HashMap<Integer, Integer>();
-
 		Set set = listOfNeighbors.entrySet();
 		Iterator i = set.iterator();
 	    while(i.hasNext()) 
 	    {
+	    	jobScore = new HashMap<Integer, Integer>();
+	    	
 	    	Map.Entry me = (Map.Entry)i.next();
 	        
 	    	NearestNeighbor n = (NearestNeighbor)me.getValue();
@@ -80,15 +82,19 @@ public class Classifier {
 	    	assignRank(getAppliedJobs(n.getNeighbor4()));
 	    	assignRank(getAppliedJobs(n.getNeighbor5()));
 	    	
+	    	sortedJobScore = sortHashMapByValues(jobScore);
+	    	
+	    	if(recordCounter == 150) {
+	    		return;
+	    	}
+	    	
+	    	writeOutputTSV(n.getPrimaryUser(), sortedJobScore);
+	    	
 	    	n = null;
-	    }
-	    
-	    sortedJobScore = sortHashMapByValues(jobScore);
-	    displayScores();
-	    writeOutputTSV();
+	    }    
 	}
 	
-	public LinkedHashMap sortHashMapByValues(HashMap passedMap) {
+	public LinkedHashMap<Integer, Integer> sortHashMapByValues(HashMap passedMap) {
 		   
 		List mapKeys = new ArrayList(passedMap.keySet());
 		List mapValues = new ArrayList(passedMap.values());
@@ -138,18 +144,25 @@ public class Classifier {
 	    }
 	}
 	
-	public void writeOutputTSV() {
+	public void writeOutputTSV(Integer userId, LinkedHashMap<Integer, Integer> usersJobs) {
 		
 		String consolidatedData = "", fileToWrite = "";
 		
 		fileToWrite = OUTPUT_PATH;
 		
-		for (int i = topJobs.length - 1; i > topJobs.length - 151; i--) 
-		{
-			consolidatedData += topJobs[i] + "\n";
-		}
+		Set set = usersJobs.entrySet();
+	    Iterator i = set.iterator();
+	    
+	    while(i.hasNext()) {	
+	    	
+	    	Map.Entry me = (Map.Entry)i.next();
+	        
+	    	consolidatedData += userId + "\t" + (Integer)me.getKey() + "\n";
+	    	System.out.println(userId + " " + (Integer)me.getKey());
+	    }
 
-		write(consolidatedData, fileToWrite);
+		write(consolidatedData, fileToWrite, true);
+		recordCounter++;
 	}
 
 	public List<Integer> getAppliedJobs(Integer userId) {
@@ -174,6 +187,7 @@ public class Classifier {
 	    }
 	}
 	
+	@SuppressWarnings("deprecation")
 	public void assignRank(List<Integer> usersAppliedJobs) {
 		
 		if(usersAppliedJobs == null) {
@@ -185,13 +199,40 @@ public class Classifier {
 		{
 			Integer jobId = (Integer)listIter.next();
 			
-			if(jobScore.get(jobId) == null) {
-	    		jobScore.put(jobId, new Integer(1));
-	    	} else {
-	    		Integer count = jobScore.get(jobId);
-	    		jobScore.put(jobId, new Integer(++count));
-	    	}    	
+			if(checkEndDateAfter(jobId, new Date("2012-04-09 00:00:00"))) 
+			{
+				if(jobScore.get(jobId) == null) {
+		    		jobScore.put(jobId, new Integer(1));
+		    	} else {
+		    		Integer count = jobScore.get(jobId);
+		    		jobScore.put(jobId, new Integer(++count));
+		    	} 
+			}	   	
 		}
+	}
+	
+	public boolean checkEndDateAfter(Integer jobId, Date endDate) {
+		
+		Set set = jobsList.entrySet();
+		Iterator i = set.iterator();
+	    while(i.hasNext()) 
+	    {	    	
+	    	Map.Entry me = (Map.Entry)i.next();
+	        
+	    	JobsModel j = (JobsModel)me.getValue();
+	    	
+	    	if(j.getJobID() == jobId) {
+	    		if(j.getEndDate().after(endDate)) {
+	    			return true;
+	    		} else {
+	    			return false;
+	    		}
+	    	}
+	    	
+	    	j = null;
+	    }   
+	    
+	    return false;
 	}
 
 	public void readAppsTSV() throws IOException, ParseException {
@@ -941,10 +982,10 @@ public class Classifier {
 			}
 	    }
 
-		write(consolidatedData, fileToWrite);
+		write(consolidatedData, fileToWrite, false);
 	}
 
-	public void write(String dataToWrite, String filename) {
+	public void write(String dataToWrite, String filename, boolean append) {
 		try {
 
 			File file = new File(filename);
@@ -953,7 +994,7 @@ public class Classifier {
 				file.createNewFile();
 			}
 
-			FileOutputStream out = new FileOutputStream(file, false);
+			FileOutputStream out = new FileOutputStream(file, append);
 			out.write(dataToWrite.getBytes(Charset.forName("UTF-8")));
 			out.close();
 
@@ -986,7 +1027,7 @@ public class Classifier {
 
 		consolidatedData += JSONObject.toJSONString(obj);
 
-		write(consolidatedData, fileToWrite);
+		write(consolidatedData, fileToWrite, false);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -1007,7 +1048,7 @@ public class Classifier {
 		}
 
 		// Write updated data
-		write(configObj.toJSONString(), fileToReadWrite);
+		write(configObj.toJSONString(), fileToReadWrite, false);
 	}
 
 	public JSONObject getConfig() throws IOException, ParseException {
