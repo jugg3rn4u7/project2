@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,8 +38,9 @@ public class Classifier {
 	private String INPUT_PATH = null;
 	private String OUTPUT_PATH = null; 
 	private int recordCounter = 0;
+	private int msgCounter = 0;
 
-	public Classifier(String folderLocation, String outputLocation) throws IOException, ParseException {
+	public Classifier(String folderLocation, String outputLocation) throws IOException, ParseException, java.text.ParseException {
 		// TODO Auto-generated constructor stub
 		
 		INPUT_PATH = folderLocation;
@@ -59,9 +61,13 @@ public class Classifier {
 			listOfNeighbors = readNeighborsTSV();
 			scoreJobs(listOfNeighbors);
 		}
+		
+		System.out.println("Done.\nEnd of program.");
 	}
 
-	public void scoreJobs(HashMap<Integer, NearestNeighbor> listOfNeighbors) throws IOException, ParseException {
+	public void scoreJobs(HashMap<Integer, NearestNeighbor> listOfNeighbors) throws IOException, ParseException, java.text.ParseException {
+		
+		System.out.println("Scoring Jobs...");
 
 		readJobsTSV();
 		readAppsTSV();
@@ -84,10 +90,6 @@ public class Classifier {
 	    	
 	    	sortedJobScore = sortHashMapByValues(jobScore);
 	    	
-	    	if(recordCounter == 150) {
-	    		return;
-	    	}
-	    	
 	    	writeOutputTSV(n.getPrimaryUser(), sortedJobScore);
 	    	
 	    	n = null;
@@ -96,33 +98,52 @@ public class Classifier {
 	
 	public LinkedHashMap<Integer, Integer> sortHashMapByValues(HashMap passedMap) {
 		   
-		List mapKeys = new ArrayList(passedMap.keySet());
-		List mapValues = new ArrayList(passedMap.values());
+		Set set = passedMap.entrySet();
+	    Iterator iter = set.iterator();
+	    
+	    int size = passedMap.size();
+	    
+	    Integer[] keys = new Integer[size];
+	    Integer[] values = new Integer[size];
+	    
+	    int counter = 0;
+	    
+	    while(iter.hasNext()) {	
+	    	
+	    	Map.Entry me = (Map.Entry)iter.next();
+	        keys[counter] = (Integer)me.getKey();
+	        values[counter] = (Integer)me.getValue();
+	        
+	        counter++;
+	        //System.out.println("counter : "+counter);
+	    }
+	    
+	    int n = size; // Ignore common users
+		int temp = 0;
+		int temp1 = 0;
+
+		for (int i = 0; i < n; i++) {
+			for (int j = 1; j < (n - i); j++) {
+
+				if (values[j - 1] > values[j]) {
+					// swap the elements!
+					temp = values[j - 1];
+					values[j - 1] = values[j];
+					values[j] = temp;
+
+					temp1 = keys[j - 1];
+					keys[j - 1] = keys[j];
+					keys[j] = temp1;
+				}
+
+			}
+		}
 		
-		Collections.sort(mapValues);
-		Collections.sort(mapKeys);
-
-		LinkedHashMap sortedMap = new LinkedHashMap();
-
-		Iterator valueIt = mapValues.iterator();
-		while (valueIt.hasNext()) {
-			
-		       Object val = valueIt.next();
-		       Iterator keyIt = mapKeys.iterator();
-
-		       while (keyIt.hasNext()) {
-		    	   
-		           Object key = keyIt.next();
-		           Integer comp1 = (Integer)passedMap.get(key);
-		           Integer comp2 = (Integer)val;
-
-		           if (comp1 == comp2) {
-		               passedMap.remove(key);
-		               mapKeys.remove(key);
-		               sortedMap.put(key, val);
-		               break;
-		           }
-		       }
+		LinkedHashMap<Integer, Integer> sortedMap = new LinkedHashMap<Integer, Integer>();
+		
+		for (int i = 0; i < keys.length; i++) {
+			sortedMap.put(keys[i], values[i]);
+			//System.out.println("key : "+keys[i]+" ; val : "+values[i]);
 		}
 		
 		return sortedMap;
@@ -146,6 +167,17 @@ public class Classifier {
 	
 	public void writeOutputTSV(Integer userId, LinkedHashMap<Integer, Integer> usersJobs) {
 		
+    	if(recordCounter == 151) {
+    		//System.out.println("record count : "+ recordCounter);
+    		if (msgCounter == 0) {
+				msgCounter = 1;
+				System.out.println("Please wait till the program ends...\nIt might take a while...");
+			}
+    		return;
+    	}
+    	
+    	recordCounter++;
+    	
 		String consolidatedData = "", fileToWrite = "";
 		
 		fileToWrite = OUTPUT_PATH;
@@ -158,11 +190,12 @@ public class Classifier {
 	    	Map.Entry me = (Map.Entry)i.next();
 	        
 	    	consolidatedData += userId + "\t" + (Integer)me.getKey() + "\n";
-	    	System.out.println(userId + " " + (Integer)me.getKey());
+	    	//System.out.println(consolidatedData);
+	    	
+	    	//Pick one top job from each user and write them
+	    	write(consolidatedData, fileToWrite, true);
+	    	return;
 	    }
-
-		write(consolidatedData, fileToWrite, true);
-		recordCounter++;
 	}
 
 	public List<Integer> getAppliedJobs(Integer userId) {
@@ -188,7 +221,7 @@ public class Classifier {
 	}
 	
 	@SuppressWarnings("deprecation")
-	public void assignRank(List<Integer> usersAppliedJobs) {
+	public void assignRank(List<Integer> usersAppliedJobs) throws java.text.ParseException {
 		
 		if(usersAppliedJobs == null) {
 			return; //No jobs applied
@@ -199,7 +232,7 @@ public class Classifier {
 		{
 			Integer jobId = (Integer)listIter.next();
 			
-			if(checkEndDateAfter(jobId, new Date("2012-04-09 00:00:00"))) 
+			if(checkEndDateAfter(jobId, "2012-04-09 00:00:00")) 
 			{
 				if(jobScore.get(jobId) == null) {
 		    		jobScore.put(jobId, new Integer(1));
@@ -211,7 +244,10 @@ public class Classifier {
 		}
 	}
 	
-	public boolean checkEndDateAfter(Integer jobId, Date endDate) {
+	public boolean checkEndDateAfter(Integer jobId, String endDate) throws java.text.ParseException {
+		
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
+		Date formattedEndDate = sdf.parse(endDate);
 		
 		Set set = jobsList.entrySet();
 		Iterator i = set.iterator();
@@ -222,7 +258,8 @@ public class Classifier {
 	    	JobsModel j = (JobsModel)me.getValue();
 	    	
 	    	if(j.getJobID() == jobId) {
-	    		if(j.getEndDate().after(endDate)) {
+	    	
+	    		if(j.getEndDate() != null && j.getEndDate().after(formattedEndDate)) {
 	    			return true;
 	    		} else {
 	    			return false;
@@ -231,7 +268,6 @@ public class Classifier {
 	    	
 	    	j = null;
 	    }   
-	    
 	    return false;
 	}
 
@@ -354,7 +390,7 @@ public class Classifier {
 		return listOfFiles;
 	}
 
-	public void loadInputFiles(List<FileModel> listOfFiles) throws IOException, ParseException {
+	public void loadInputFiles(List<FileModel> listOfFiles) throws IOException, ParseException, java.text.ParseException {
 
 		// Iterate over file list
 		Iterator<FileModel> listIter = listOfFiles.iterator();
@@ -451,7 +487,15 @@ public class Classifier {
 
 			System.out.println("Loading Ended ...");
 		}
-
+		
+		if ((Boolean) configuration.get("skipCalculatingNeighbors") == true) {
+			listOfNeighbors = readNeighborsTSV();
+			scoreJobs(listOfNeighbors);
+			return;
+		}
+		
+		System.out.println("Calculating Neighbors ...");
+		
 		listOfNeighbors = calculateNeighbor(usersList, user2List);
 		Set set = listOfNeighbors.entrySet();
 		Iterator i = set.iterator();
@@ -597,10 +641,6 @@ public class Classifier {
 					jobTitleMissing = true;
 				}
 
-				// TODO: Remove this...
-				// System.out.println("Single line: "+ stringArray[0] +"; "+
-				// stringArray[1] +";");
-
 				lineCounter++;
 
 				UserHistoryModel newUser = new UserHistoryModel();
@@ -660,10 +700,6 @@ public class Classifier {
 
 				stringArray = line.toString().split("\\t");
 
-				// TODO: Remove this...
-				// System.out.println("Single line: "+ stringArray[0] +"; "+
-				// stringArray[1] +";");
-
 				lineCounter++;
 
 				JobsModel newJob = new JobsModel();
@@ -682,6 +718,12 @@ public class Classifier {
 
 				if (!isDirtyData(stringArray[7], "number")) {
 					newJob.setZip5(Integer.parseInt(stringArray[7]));
+				}
+				
+				if (!isDirtyData(stringArray[9], "text")) {
+					SimpleDateFormat sdf = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
+					Date formattedEndDate = sdf.parse(stringArray[9]);
+					newJob.setEndDate(formattedEndDate);
 				}
 
 				jobs.put(newJob.getJobID(), newJob);
@@ -725,10 +767,6 @@ public class Classifier {
 				}
 
 				stringArray = line.toString().split("\\t");
-
-				// TODO: Remove this...
-				// System.out.println("Single line: "+ stringArray[0] +"; "+
-				// stringArray[1] +"; "+ stringArray[2]);
 
 				lineCounter++;
 
@@ -787,9 +825,6 @@ public class Classifier {
 //				}
 
 				stringArray = line.toString().split("\\t");
-
-				// TODO: Remove this...
-				// System.out.println("Single line: "+ stringArray[0] +"; ");
 
 				lineCounter++;
 
@@ -912,13 +947,6 @@ public class Classifier {
 				counter++;
 		    }
 
-			// TODO: Remove this block...
-			// for (int i = 0; i < distances.length; i++) {
-			// System.out.println("i: "+ i +" Distances: "+ distances[i] +
-			// " ; userID : "+users[i]);
-			// assert(distances[i] == null);
-			// }
-
 			int n = users.length - skipIterationCounter; // Ignore common users
 			double temp = 0.0;
 			int temp1 = 0;
@@ -947,12 +975,6 @@ public class Classifier {
 				finalReturnList[counter2] = users[i];
 				counter2++;
 			}
-
-			// TODO: Remove this block...
-			// for (int i = 0; i < finalReturnList.length; i++) {
-			// System.out.println("sorted list of neighbors: "+
-			// finalReturnList[i]);
-			// }
 
 			return finalReturnList;
 
@@ -1006,6 +1028,8 @@ public class Classifier {
 
 	@SuppressWarnings("unchecked")
 	public void createConfig() throws IOException, ParseException {
+		
+		System.out.println("Creating config.json ...");
 
 		String consolidatedData = "", fileToWrite = "config.json";
 		

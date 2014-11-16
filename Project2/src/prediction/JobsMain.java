@@ -9,7 +9,9 @@ import org.apache.commons.lang.StringEscapeUtils;
 public class JobsMain {
 
 	@SuppressWarnings("unchecked")
-	public static void main(String[] args) throws IOException, ParseException, CustomExceptionHandler {
+	public static void main(String[] args) throws IOException, ParseException, CustomExceptionHandler, java.text.ParseException {
+		
+		String outputFilePath = args[1];
 		
 		//Program input validation
 		if(args[0].isEmpty()) {
@@ -31,6 +33,10 @@ public class JobsMain {
 		
 		strArray = args[1].split(fileSeparator);
 		
+//		for (int i = 0; i < strArray.length; i++) {
+//			System.out.println(strArray[i]);
+//		}
+		
 		//exclude filename at the end
 		for (int i = 0; i < strArray.length - 1; i++) {
 			outputFolder += strArray[i] + fileSeparator;
@@ -41,10 +47,12 @@ public class JobsMain {
 			throw new CustomExceptionHandler("Argument 1 is invalid: Output folder " + outputFolder + "does not exists");
 		}
 		
+		//args[1] = outputFolder + strArray[strArray.length];
+		
 		System.out.println("args[0] : "+FilenameUtils.separatorsToUnix(args[0]));
-		System.out.println("args[1] : "+FilenameUtils.separatorsToUnix(args[1]));
+		System.out.println("args[1] : "+FilenameUtils.separatorsToUnix(outputFilePath));
 
-		new Classifier(args[0], args[1]);
+		new Classifier(args[0], outputFilePath);
 	}
 
 }
